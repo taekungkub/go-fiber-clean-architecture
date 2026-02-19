@@ -7,7 +7,6 @@ import (
 	"go-fiber-api/pkg/entities"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -118,12 +117,7 @@ func (s *service) GetUserByID(id string) (*entities.User, error) {
 
 func (s *service) UpdateUser(dto *dto.UpdateUserDTO) (*entities.User, error) {
 
-	id, err := primitive.ObjectIDFromHex(dto.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	existing, err := s.repo.FindByID(id.Hex())
+	existing, err := s.repo.FindByID(dto.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -132,17 +126,25 @@ func (s *service) UpdateUser(dto *dto.UpdateUserDTO) (*entities.User, error) {
 		return nil, errors.New("user not found")
 	}
 
-	// update user
-	user := &entities.User{
-		ID:        id,
-		Email:     dto.Email,
-		Name:      dto.Name,
-		Password:  existing.Password,
-		CreatedAt: existing.CreatedAt,
-		UpdatedAt: time.Now(),
+	if dto.Name != "" {
+		existing.Name = dto.Name
 	}
 
-	return s.repo.UpdateUser(user)
+	if dto.Email != "" {
+		existing.Email = dto.Email
+	}
+
+	if dto.Password != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(dto.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return nil, err
+		}
+		existing.Password = string(hashedPassword)
+	}
+
+	existing.UpdatedAt = time.Now()
+
+	return s.repo.UpdateUser(existing)
 }
 
 func (s *service) RemoveUser(id string) error {
